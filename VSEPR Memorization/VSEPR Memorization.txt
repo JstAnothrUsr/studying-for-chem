@@ -7,7 +7,7 @@ Running this is easy, if you have python downloaded then open powershell and cha
     
 Or you can past this code into a python IDE and then run through there. Good luck...
 Or you can download and run this .exe file:
-https://drive.google.com/file/d/1VJFGLac2BshGz-UXyn28z7QVwR_dHjEV/view
+https://drive.google.com/file/d/1YE9E3VaBZPjMBa3TSIFmFqYjBYMFSsPV/view?usp=sharing
 
 Modes (6):
  1) formula+regions -> shape+angle
@@ -387,3 +387,4 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("\nInterrupted. Exiting")
         sys.exit(0)
+

@@ -1,0 +1,274 @@
+import random
+import re
+import sys
+
+IONS = {
+    "hydronium": {
+        "display_name": "Hydronium",
+        "aliases": ["hydronium", "oxonium", "h3o+"],
+        "display_formula": "H3O +",
+        "canonical_formula": "H3O+",
+    },
+    "mercury_i": {
+        "display_name": "Dimercury (I)",
+        "aliases": ["mercury(i)", "mercurous", "mercurous ion", "hg2 2+", "hg22+"],
+        "display_formula": "Hg2 2+",
+        "canonical_formula": "Hg22+",
+    },
+    "ammonium": {
+        "display_name": "Ammonium",
+        "aliases": ["ammonium", "nh4+"],
+        "display_formula": "NH4 +",
+        "canonical_formula": "NH4+",
+    },
+    "acetate": {
+        "display_name": "Acetate",
+        "aliases": ["acetate", "ch3coo-", "c2h3o2-"],
+        "display_formula": "CH3COO -",
+        "canonical_formula": "CH3COO-",
+    },
+    "cyanide": {
+        "display_name": "Cyanide",
+        "aliases": ["cyanide", "cn-"],
+        "display_formula": "CN -",
+        "canonical_formula": "CN-",
+    },
+    "carbonate": {
+        "display_name": "Carbonate",
+        "aliases": ["carbonate", "co3 2+", "co3 2-", "co32-"],
+        "display_formula": "CO3 2-",
+        "canonical_formula": "CO32-",
+    },
+    "hydrogen_carbonate": {
+        "display_name": "Hydrogen carbonate (bicarbonate)",
+        "aliases": ["hydrogen carbonate", "bicarbonate", "hco3-", "hco3 -"],
+        "display_formula": "HCO3 -",
+        "canonical_formula": "HCO3-",
+    },
+    "oxalate": {
+        "display_name": "Oxalate",
+        "aliases": ["oxalate", "c2o4 2-", "c2o42-"],
+        "display_formula": "C2O4 2-",
+        "canonical_formula": "C2O42-",
+    },
+    "hypochlorite": {
+        "display_name": "Hypochlorite",
+        "aliases": ["hypochlorite", "clo -", "clo-"],
+        "display_formula": "ClO -",
+        "canonical_formula": "ClO-",
+    },
+    "chlorite": {
+        "display_name": "Chlorite",
+        "aliases": ["chlorite", "clo2 -", "clo2-"],
+        "display_formula": "ClO2 -",
+        "canonical_formula": "ClO2-",
+    },
+    "chlorate": {
+        "display_name": "Chlorate",
+        "aliases": ["chlorate", "clo3-"],
+        "display_formula": "ClO3 -",
+        "canonical_formula": "ClO3-",
+    },
+    "perchlorate": {
+        "display_name": "Perchlorate",
+        "aliases": ["perchlorate", "clo4-"],
+        "display_formula": "ClO4 -",
+        "canonical_formula": "ClO4-",
+    },
+    "chromate": {
+        "display_name": "Chromate",
+        "aliases": ["chromate", "cro4 2-", "cro42-"],
+        "display_formula": "CrO4 2-",
+        "canonical_formula": "CrO42-",
+    },
+    "dichromate": {
+        "display_name": "Dichromate",
+        "aliases": ["dichromate", "cr2o7 2-"],
+        "display_formula": "Cr2O7 2-",
+        "canonical_formula": "Cr2O72-",
+    },
+    "permanganate": {
+        "display_name": "Permanganate",
+        "aliases": ["permanganate", "mno4-"],
+        "display_formula": "MnO4 -",
+        "canonical_formula": "MnO4-",
+    },
+    "nitrite": {
+        "display_name": "Nitrite",
+        "aliases": ["nitrite", "no2-"],
+        "display_formula": "NO2 -",
+        "canonical_formula": "NO2-",
+    },
+    "nitrate": {
+        "display_name": "Nitrate",
+        "aliases": ["nitrate", "no3-"],
+        "display_formula": "NO3 -",
+        "canonical_formula": "NO3-",
+    },
+    "peroxide": {
+        "display_name": "Peroxide",
+        "aliases": ["peroxide", "o2 2-", "o22-"],
+        "display_formula": "O2 2-",
+        "canonical_formula": "O22-",
+    },
+    "hydroxide": {
+        "display_name": "Hydroxide",
+        "aliases": ["hydroxide", "oh-"],
+        "display_formula": "OH -",
+        "canonical_formula": "OH-",
+    },
+    "phosphate": {
+        "display_name": "Phosphate",
+        "aliases": ["phosphate", "po4 3-", "po43-"],
+        "display_formula": "PO4 3-",
+        "canonical_formula": "PO43-",
+    },
+    "thiocyanate": {
+        "display_name": "Thiocyanate",
+        "aliases": ["thiocyanate", "scn-"],
+        "display_formula": "SCN -",
+        "canonical_formula": "SCN-",
+    },
+    "sulfite": {
+        "display_name": "Sulfite",
+        "aliases": ["sulfite", "so3 2-", "so32-"],
+        "display_formula": "SO3 2-",
+        "canonical_formula": "SO32-",
+    },
+    "sulfate": {
+        "display_name": "Sulfate",
+        "aliases": ["sulfate", "so4 2-", "so42-"],
+        "display_formula": "SO4 2-",
+        "canonical_formula": "SO42-",
+    },
+    "hydrogen_sulfate": {
+        "display_name": "Hydrogen sulfate (bisulfate)",
+        "aliases": ["hydrogen sulfate", "bisulfate", "hso4-"],
+        "display_formula": "HSO4 -",
+        "canonical_formula": "HSO4-",
+    },
+    "thiosulfate": {
+        "display_name": "Thiosulfate",
+        "aliases": ["thiosulfate", "s2o3 2-", "s2o32-"],
+        "display_formula": "S2O3 2-",
+        "canonical_formula": "S2O32-",
+    },
+}
+
+for k, v in IONS.items():
+    v["canonical_formula"] = re.sub(r'\s+', '', v["display_formula"]).replace('−', '-').replace('–','-').replace('+','+').replace(' ', '')
+
+# Build quick lookup maps
+name_to_canonical = {}
+for cid, info in IONS.items():
+    for alias in info["aliases"]:
+        name_to_canonical[alias.strip().lower()] = cid
+    # also map display name
+    name_to_canonical[info["display_name"].lower()] = cid
+
+formula_to_canonical = {}
+for cid, info in IONS.items():
+    # canonical formula: remove spaces
+    canon = re.sub(r'\s+', '', info["display_formula"])
+    formula_to_canonical[canon.replace('−','-').replace('–','-')] = cid
+
+
+def canonicalize_formula_input(s: str) -> str:
+    if not s:
+        return ""
+    s = s.strip().replace('\u2212', '-').replace('−','-').replace('–','-')
+    s_nospace = re.sub(r'\s+', '', s)
+    # Try to split into formula + optional numeric charge + sign at end
+    m = re.match(r'^(.+?)(\d*)([+-])$', s_nospace)
+    if m:
+        formula = m.group(1)
+        num = m.group(2)
+        sign = m.group(3)
+        if num == "":
+            return f"{formula}{sign}"
+        else:
+            return f"{formula}{num}{sign}"
+    # If nothing matches, return the no-space version
+    return s_nospace
+
+
+def ask_name_to_formula():
+    items = list(IONS.items())
+    random.shuffle(items)
+    total = len(items)
+    correct = 0
+    misses = []
+    print(f"\nQuiz: Give the FORMULA (format: e.g. 'CO3 2-') for each name. {total} questions.\n")
+    for cid, info in items:
+        prompt = info["display_name"]
+        user = input(f"{prompt} -> ").strip()
+        user_canon = canonicalize_formula_input(user)
+        expected_canon = canonicalize_formula_input(info["display_formula"])
+        if user_canon.lower() == expected_canon.lower():
+            print("  ✓ Correct")
+            correct += 1
+        else:
+            print(f"  ✗ Incorrect — correct: {info['display_formula']}")
+            misses.append((info["display_name"], user, info["display_formula"]))
+    print("\nQuiz complete.")
+    print(f"Score: {correct}/{total} ({correct/total*100:.1f}%)")
+    if misses:
+        print("\nMissed questions:")
+        for name, given, correctf in misses:
+            print(f" - {name}: you answered '{given}' ; correct: {correctf}")
+    input("\nPress Enter to return to the main menu...")
+
+def ask_formula_to_name():
+    items = list(IONS.items())
+    random.shuffle(items)
+    total = len(items)
+    correct = 0
+    misses = []
+    print(f"\nQuiz: Give the NAME for each formula (many answers accepted). {total} questions.\n")
+    for cid, info in items:
+        display_formula = info["display_formula"]
+        user = input(f"{display_formula} -> ").strip().lower()
+        # Accept any alias for that ion
+        accepted = set([a.lower() for a in info["aliases"]] + [info["display_name"].lower()])
+        # Also accept some normalized variants (strip spaces and parentheses)
+        user_norm = re.sub(r'[\s()]+', '', user)
+        accepted_norm = set(re.sub(r'[\s()]+', '', a) for a in accepted)
+        if user in accepted or user_norm in accepted_norm:
+            print("  ✓ Correct")
+            correct += 1
+        else:
+            # allow some flexible matches: user might type 'bicarbonate' for hydrogen carbonate, etc.
+            print(f"  ✗ Incorrect — correct: {info['display_name']}")
+            misses.append((display_formula, user, info["display_name"]))
+    print("\nQuiz complete.")
+    print(f"Score: {correct}/{total} ({correct/total*100:.1f}%)")
+    if misses:
+        print("\nMissed questions:")
+        for formula, given, correctn in misses:
+            print(f" - {formula}: you answered '{given}' ; correct: {correctn}")
+    input("\nPress Enter to return to the main menu...")
+
+def main_menu():
+    print("Polyatomic ions quiz — main menu")
+    while True:
+        print("\nChoose an option:")
+        print("  1) name -> formula")
+        print("  2) formula -> name")
+        print("  3) quit")
+        choice = input("Enter 1, 2, or 3: ").strip()
+        if choice == '1':
+            ask_name_to_formula()
+        elif choice == '2':
+            ask_formula_to_name()
+        elif choice == '3' or choice.lower() in ('q', 'quit', 'exit'):
+            print("Goodbye!")
+            sys.exit(0)
+        else:
+            print("Invalid choice. Please enter 1, 2, or 3.")
+
+if __name__ == "__main__":
+    try:
+        main_menu()
+    except KeyboardInterrupt:
+        print("\n\nInterrupted. Goodbye!")
+        sys.exit(0)

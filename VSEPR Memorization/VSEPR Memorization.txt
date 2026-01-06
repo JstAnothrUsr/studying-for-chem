@@ -1,0 +1,346 @@
+#!/usr/bin/env python3
+"""
+Modes (6):
+ 1) formula+regions -> shape+angle
+ 2) formula+regions -> hybridization
+ 3) shape+angle     -> formula+regions
+ 4) shape+angle     -> hybridization
+ 5) hybridization   -> formula+regions
+ 6) hybridization   -> shape+angle
+
+ - For "formula+regions", type the representative formula followed by the
+   number of electron density regions separated by a space, for example:
+     MX2 2
+     MX3, E1 3
+ - For "shape+angle", type the shape followed by the bond angle(s) separated by a space.
+   The angle part can have spaces ("120 and 90"), so:
+     Trigonal bipyramidal 120 and 90
+     Linear 180
+ - You can type 'menu' during a quiz to go back to the main menu or 'quit' to exit.
+"""
+
+import random
+import sys
+import re
+
+# Dataset
+VSEPR_ENTRIES = [
+    {"regions": 2, "representative": "MX2", "shape": "Linear", "angle": "180°", "hybrid": "sp"},
+    {"regions": 3, "representative": "MX3", "shape": "Trigonal planar", "angle": "120°", "hybrid": "sp2"},
+    {"regions": 3, "representative": "MX2, E1", "shape": "Bent", "angle": "118°", "hybrid": "sp2"},
+    {"regions": 4, "representative": "MX4", "shape": "Tetrahedral", "angle": "109.5°", "hybrid": "sp3"},
+    {"regions": 4, "representative": "MX3, E1", "shape": "Trigonal pyramidal", "angle": "107°", "hybrid": "sp3"},
+    {"regions": 4, "representative": "MX2, E2", "shape": "Bent", "angle": "105°", "hybrid": "sp3"},
+    {"regions": 5, "representative": "MX5", "shape": "Trigonal bipyramidal", "angle": "120° and 90°", "hybrid": "sp3d"},
+    {"regions": 5, "representative": "MX4, E1", "shape": "See Saw", "angle": "120° and 90°", "hybrid": "sp3d"},
+    {"regions": 5, "representative": "MX3, E2", "shape": "T-Shaped", "angle": "90°", "hybrid": "sp3d"},
+    {"regions": 5, "representative": "MX2, E3", "shape": "Linear", "angle": "180°", "hybrid": "sp3d"},
+    {"regions": 6, "representative": "MX6", "shape": "Octahedral", "angle": "90°", "hybrid": "sp3d2"},
+    {"regions": 6, "representative": "MX5, E1", "shape": "Square pyramidal", "angle": "90°", "hybrid": "sp3d2"},
+    {"regions": 6, "representative": "MX4, E2", "shape": "Square planar", "angle": "90°", "hybrid": "sp3d2"},
+]
+
+# ----- Normalization helpers -----
+def norm(s: str) -> str:
+    if s is None:
+        return ""
+    s = str(s).lower()
+    s = s.replace("°", " deg ")
+    s = re.sub(r"[(),/+=\[\]]", " ", s)
+    s = re.sub(r"[-_]", " ", s)
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
+
+# synonym mapping (canonical -> synonyms)
+SHAPE_SYNONYMS = {
+    "linear": ["linear"],
+    "trigonal planar": ["trigonal planar", "trigonalplanar"],
+    "bent": ["bent", "angular"],
+    "tetrahedral": ["tetrahedral", "tetrahedron"],
+    "trigonal pyramidal": ["trigonal pyramidal", "trigonalpyramidal"],
+    "trigonal bipyramidal": ["trigonal bipyramidal", "tbp", "trigonalbipyramidal"],
+    "see saw": ["see saw", "seesaw", "see-saw"],
+    "t-shaped": ["t-shaped", "t shaped", "tshape", "tshaped"],
+    "octahedral": ["octahedral", "octahedron"],
+    "square pyramidal": ["square pyramidal", "squarepyramidal"],
+    "square planar": ["square planar", "squareplanar"],
+}
+
+# Flatten synonyms into normalized map lookup
+NORM_SHAPE_MAP = {}
+for canon, syns in SHAPE_SYNONYMS.items():
+    for s in syns:
+        NORM_SHAPE_MAP[norm(s)] = canon
+
+def canonical_shape_from_str(s: str) -> str:
+    n = norm(s)
+    return NORM_SHAPE_MAP.get(n, n)
+
+# Angle normalization: extract numeric tokens and compare sets
+def extract_angle_numbers(s: str):
+    n = norm(s)
+    nums = re.findall(r"\d+(?:\.\d+)?", n)
+    return nums
+
+
+# Representative formula normalization
+def parse_formula_regions_input(s: str):
+    if s is None:
+        return None, None
+    tokens = s.strip().split()
+    if not tokens:
+        return None, None
+    # last token should be an integer
+    last = tokens[-1]
+    if re.fullmatch(r"\d+", last):
+        regions = int(last)
+        formula_part = " ".join(tokens[:-1]).strip()
+        if formula_part == "":
+            return None, None
+        return norm(formula_part), regions
+    # if last token includes digits mixed (like '2,') try to extract integer
+    m = re.search(r"(\d+)", last)
+    if m:
+        regions = int(m.group(1))
+        formula_part = " ".join(tokens[:-1]).strip()
+        if formula_part == "":
+            return None, None
+        return norm(formula_part), regions
+    return None, None
+
+def canonical_formula_norm(s: str) -> str:
+    return norm(s)
+
+# ----- Checking functions -----
+def check_formula_regions_answer(user_input: str, expected_rep: str, expected_regions: int) -> bool:
+    uf, ur = parse_formula_regions_input(user_input)
+    if uf is None:
+        return False
+    # compare normalized representative formulas, allow small punctuation differences
+    if uf.replace(" ", "") == canonical_formula_norm(expected_rep).replace(" ", "") and ur == expected_regions:
+        return True
+    return False
+
+def check_shape_angle_answer(user_input: str, expected_shape: str, expected_angle: str) -> bool:
+
+    if user_input is None:
+        return False
+    # normalize input first so degree symbols and spacing are consistent
+    n = norm(user_input)
+    tokens = n.split()
+    if not tokens:
+        return False
+    # find index from left where digits appear (leftmost numeric token)
+    idx = None
+    for i in range(0, len(tokens)):
+        if re.search(r"\d", tokens[i]):
+            idx = i
+            break
+    if idx is None:
+        # no digits found -> cannot parse angle
+        return False
+    shape_part = " ".join(tokens[:idx]).strip()
+    angle_part = " ".join(tokens[idx:]).strip()
+    if not shape_part or not angle_part:
+        return False
+    # check shape
+    expected_shape_canon = canonical_shape_from_str(expected_shape)
+    user_shape_canon = canonical_shape_from_str(shape_part)
+    shape_ok = (user_shape_canon == expected_shape_canon)
+    # check angle numbers
+    nums_user = set(extract_angle_numbers(angle_part))
+    nums_expected = set(extract_angle_numbers(expected_angle))
+    angle_ok = (nums_user == nums_expected) and len(nums_expected) > 0
+    return shape_ok and angle_ok
+
+    if user_input is None:
+        return False
+    tokens = user_input.strip().split()
+    if not tokens:
+        return False
+    # find index from right where digits appear
+    idx = None
+    for i in range(len(tokens)-1, -1, -1):
+        if re.search(r"\d", tokens[i]):
+            idx = i
+            break
+    if idx is None:
+        # no digits found -> cannot parse angle
+        return False
+    shape_part = " ".join(tokens[:idx]).strip()
+    angle_part = " ".join(tokens[idx:]).strip()
+    if not shape_part or not angle_part:
+        return False
+    # check shape
+    expected_shape_canon = canonical_shape_from_str(expected_shape)
+    user_shape_canon = canonical_shape_from_str(shape_part)
+    shape_ok = (user_shape_canon == expected_shape_canon)
+    # check angle numbers
+    nums_user = set(extract_angle_numbers(angle_part))
+    nums_expected = set(extract_angle_numbers(expected_angle))
+    angle_ok = (nums_user == nums_expected) and len(nums_expected) > 0
+    return shape_ok and angle_ok
+
+
+def check_hybrid_answer(user_input: str, expected_hybrid: str) -> bool:
+    u = norm(user_input)
+    return u == norm(expected_hybrid)
+
+
+# ----- Build question pairs for modes -----
+def build_pairs_for_mode(mode: int):
+    pairs = []
+    for e in VSEPR_ENTRIES:
+        rep = e["representative"]
+        regions = e["regions"]
+        shape = e["shape"]
+        angle = e["angle"]
+        hybrid = e["hybrid"]
+        extra = {"rep": rep, "regions": regions, "shape": shape, "angle": angle, "hybrid": hybrid}
+        if mode == 1:
+            prompt = f"{rep} {regions}"
+            expected = f"{shape} {angle}"
+            pairs.append((prompt, expected, extra))
+        elif mode == 2:
+            prompt = f"{rep} {regions}"
+            expected = hybrid
+            pairs.append((prompt, expected, extra))
+        elif mode == 3:
+            prompt = f"{shape} {angle}"
+            expected = f"{rep} {regions}"
+            pairs.append((prompt, expected, extra))
+        elif mode == 4:
+            prompt = f"{shape} {angle}"
+            expected = hybrid
+            pairs.append((prompt, expected, extra))
+        elif mode == 5:
+            prompt = hybrid
+            expected = f"{rep} {regions}"
+            pairs.append((prompt, expected, extra))
+        elif mode == 6:
+            prompt = hybrid
+            expected = f"{shape} {angle}"
+            pairs.append((prompt, expected, extra))
+    return pairs
+
+
+# ----- Quiz loop -----
+def quiz_loop(mode: int):
+    pairs = build_pairs_for_mode(mode)
+    random.shuffle(pairs)
+    total = len(pairs)
+    asked = 0
+    correct = 0
+
+    print(f"\nStarting quiz mode {mode}. {total} questions in this deck")
+    print("Type 'menu' to return to main menu, 'quit' to exit program.\n")
+
+    while pairs:
+        prompt_val, expected_val, extra = pairs.pop()
+        asked += 1
+
+        # present prompt according to mode
+        if mode == 1:
+            q = f"Q{asked}: Given representative formula + regions: '{prompt_val}', provide SHAPE and BOND ANGLE(s) (shape then angle). \nAnswer: "
+            user = input(q).strip()
+            if user.lower() in ("menu", "quit"):
+                pairs.append((prompt_val, expected_val, extra))
+                return None
+            # check shape+angle
+            if check_shape_angle_answer(user, extra["shape"], extra["angle"]):
+                print("Correct!\n")
+                correct += 1
+            else:
+                print(f"Incorrect. Correct: {extra['shape']} {extra['angle']}\n")
+        elif mode == 2:
+            q = f"Q{asked}: Given representative formula + regions: '{prompt_val}', provide HYBRIDIZATION (e.g. sp3). \nAnswer: "
+            user = input(q).strip()
+            if user.lower() in ("menu", "quit"):
+                pairs.append((prompt_val, expected_val, extra))
+                return None
+            if check_hybrid_answer(user, extra["hybrid"]):
+                print("Correct!\n")
+                correct += 1
+            else:
+                print(f"Incorrect. Correct hybridization: {extra['hybrid']}\n")
+        elif mode == 3:
+            q = f"Q{asked}: Given SHAPE + BOND ANGLE(s): '{prompt_val}', provide REPRESENTATIVE FORMULA and REGIONS (format: formula regions). \nAnswer: "
+            user = input(q).strip()
+            if user.lower() in ("menu", "quit"):
+                pairs.append((prompt_val, expected_val, extra))
+                return None
+            # check formula+regions
+            if check_formula_regions_answer(user, extra["rep"], extra["regions"]):
+                print("Correct!\n")
+                correct += 1
+            else:
+                print(f"Incorrect. Correct: {extra['rep']} {extra['regions']}\n")
+        elif mode == 4:
+            q = f"Q{asked}: Given SHAPE + BOND ANGLE(s): '{prompt_val}', provide HYBRIDIZATION. \nAnswer: "
+            user = input(q).strip()
+            if user.lower() in ("menu", "quit"):
+                pairs.append((prompt_val, expected_val, extra))
+                return None
+            if check_hybrid_answer(user, extra["hybrid"]):
+                print("Correct!\n")
+                correct += 1
+            else:
+                print(f"Incorrect. Correct hybridization: {extra['hybrid']}\n")
+        elif mode == 5:
+            q = f"Q{asked}: Given HYBRIDIZATION: '{prompt_val}', provide REPRESENTATIVE FORMULA and REGIONS (format: formula regions). \nAnswer: "
+            user = input(q).strip()
+            if user.lower() in ("menu", "quit"):
+                pairs.append((prompt_val, expected_val, extra))
+                return None
+            if check_formula_regions_answer(user, extra["rep"], extra["regions"]):
+                print("Correct!\n")
+                correct += 1
+            else:
+                print(f"Incorrect. Correct: {extra['rep']} {extra['regions']}\n")
+        elif mode == 6:
+            q = f"Q{asked}: Given HYBRIDIZATION: '{prompt_val}', provide SHAPE and BOND ANGLE(s) (shape then angle). \nAnswer: "
+            user = input(q).strip()
+            if user.lower() in ("menu", "quit"):
+                pairs.append((prompt_val, expected_val, extra))
+                return None
+            if check_shape_angle_answer(user, extra["shape"], extra["angle"]):
+                print("Correct!\n")
+                correct += 1
+            else:
+                print(f"Incorrect. Correct: {extra['shape']} {extra['angle']}\n")
+    # deck finished
+    pct = (correct / total * 100) if total else 0
+    print(f"Deck complete! Score: {correct}/{total} ({pct:.1f}%).\n")
+    input("Press Enter to return to main menu..")
+    return None
+
+
+# ----- Main menu -----
+def main_menu():
+    while True:
+        print("\nVSEPR Quiz Main Menu")
+        print("--------------------")
+        print("1 - (formula+regions) -> (shape+angle)")
+        print("2 - (formula+regions) -> hybridization")
+        print("3 - (shape+angle) -> (formula+regions)")
+        print("4 - (shape+angle) -> hybridization")
+        print("5 - hybridization -> (formula+regions)")
+        print("6 - hybridization -> (shape+angle)")
+        print("0 - Quit")
+        choice = input("Choose a mode (0-6): ").strip()
+        if choice == "0" or choice.lower() == "quit":
+            print("Goodbye!")
+            sys.exit(0)
+        if choice not in {"1", "2", "3", "4", "5", "6"}:
+            print("Invalid choice. Try again")
+            continue
+        mode = int(choice)
+        quiz_loop(mode)
+
+
+if __name__ == "__main__":
+    try:
+        main_menu()
+    except KeyboardInterrupt:
+        print("\nInterrupted. Exiting")
+        sys.exit(0)

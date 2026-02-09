@@ -1,0 +1,126 @@
+import random
+
+# Conversion factors: (unit_from, unit_to, factor)
+# Meaning: 1 unit_from = factor unit_to
+conversions = [
+   ("cm", "mm", 10),
+   ("in", "cm", 2.54),
+   ("ft", "in", 12),
+   ("yard", "ft", 3),
+   ("m", "cm", 100),
+    ("m", "ft", 3.281),
+    ("mi", "km", 1.609),
+   ("km", "m", 1000),
+   ("mi", "ft", 5280),
+   ("mi", "furlongs", 8),
+    ("Å", "m", 1e-10),
+    ("light-year", "km", 9.46e12),
+    ("cal", "J", 4.184),
+   ("Cal", "cal", 1000),
+   ("kJ", "J", 1000),
+    ("eV", "J", 1.6e-19),
+    ("kWh", "J", 3.6e6),
+    ("BTU", "kJ", 1.055),
+    ("ft-lb", "J", 1.356),
+   ("kW", "W", 1000),
+    ("hp", "W", 746),
+    ("ft-lb/s", "W", 1.36),
+   ("L", "mL", 1000),
+    ("mL", "cm^3", 1),
+    ("m^3", "L", 1000),
+    ("amu", "g", 1.66e-24),
+    ("oz", "g", 28.35),
+    ("gal", "L", 3.785),
+    ("lb", "oz", 16),
+    ("lb", "g", 453.6),
+   ("gal", "qt", 4),
+   ("kg", "g", 1000),
+    ("kg", "lbs", 2.2),
+   ("qt", "pints", 2),
+   ("pt", "cups", 2),
+   ("ton", "lbs", 2000),
+    ("cup", "fl oz", 8),
+   ("metric ton", "kg", 1000),
+    ("fl oz", "mL", 29.57),
+   ("cup", "Tbsp", 16),
+   ("Tbsp", "tsp", 3),
+   ("gal", "cups", 16),
+    ("gal", "fl oz", 128),
+   ("min", "s", 60),
+   ("hr", "min", 60),
+   ("day", "hrs", 24),
+   ("week", "days", 7),
+   ("month", "days", 30),
+   ("year", "months", 12),
+   ("year", "days", 365.24),
+   ("year", "weeks", 52),
+   ("Leap year", "days", 366),
+   ("Decade", "years", 10),
+   ("Century", "years", 100),
+   ("Millennium", "years", 1000),
+    ("atm", "torr", 760),
+    ("atm", "mm Hg", 760),
+    ("atm", "kPa", 101.3),
+    ("atm", "psi", 14.7),
+    ("bar", "kPa", 100),
+   ("kPa", "Pa", 1000),
+    ("Pa", "N/m^2", 1),
+   ("deg", "radians", 3.14159 / 180),
+   ("radian", "deg", 57.3),
+   ("mi^2", "acres", 640),
+   ("acre", "ft^2", 43560),
+   ("dozen", "count", 12),
+    ("mol", "particles", 6.02e23),
+]
+
+# SI prefixes
+prefixes = [
+    ("deci", "base", 1e-1),
+    ("centi", "base", 1e-2),
+    ("milli", "base", 1e-3),
+    ("micro", "base", 1e-6),
+    ("nano", "base", 1e-9),
+    ("pico", "base", 1e-12),
+    ("femto", "base", 1e-15),
+    ("atto", "base", 1e-18),
+    ("deca", "base", 1e1),
+    ("hecto", "base", 1e2),
+    ("kilo", "base", 1e3),
+    ("mega", "base", 1e6),
+    ("giga", "base", 1e9),
+    ("tera", "base", 1e12),
+    ("peta", "base", 1e15),
+    ("exa", "base", 1e18),
+]
+
+# Merge into one pool
+all_conversions = conversions + prefixes
+
+
+def quiz(num_questions=len(all_conversions)):
+    score = 0
+
+    # Avoid repeats by sampling without replacement
+    if num_questions > len(all_conversions):
+        num_questions = len(all_conversions)
+
+    questions = random.sample(all_conversions, num_questions)
+
+    for i, (unit_from, unit_to, factor) in enumerate(questions, 1):
+        print(f"\nQuestion {i}:")
+        answer = input(f"What is the conversion factor from 1 {unit_from} to {unit_to}? ")
+
+        try:
+            user_val = float(answer)
+            if factor != 0 and abs(user_val - factor) / factor <= 0.01 : # tolerance (acceptable percent error)
+                print("✅ Correct!")
+                score += 1
+            else:
+                print(f"❌ Incorrect. Correct answer: {factor}")
+        except ValueError:
+            print(f"❌ Invalid input. Correct answer: {factor}")
+
+    print(f"\nFinal Score: {score}/{num_questions}")
+
+
+quiz()
